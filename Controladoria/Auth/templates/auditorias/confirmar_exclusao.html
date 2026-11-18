@@ -1,0 +1,44 @@
+{% extends '_base_app.html' %}
+
+{% block title %}Confirmar Exclusão{% endblock %}
+
+{% block breadcrumb_trail %}
+<a href="{% url 'Auth:lista_auditorias' %}">Auditorias</a>
+<span class="sep">/</span>
+<span class="current">Excluir</span>
+{% endblock %}
+
+{% block content %}
+<div class="confirm-overlay">
+  <div class="confirm-dialog card">
+    <div class="confirm-header">
+      <i class="bi bi-trash confirm-icon"></i>
+      <h2 class="confirm-title">Confirmar Exclusão</h2>
+    </div>
+    <div class="confirm-body">
+      <p>Tem certeza que deseja excluir permanentemente a auditoria abaixo? Esta operação não pode ser desfeita e removerá todas as etapas e achados vinculados.</p>
+      <p class="confirm-subject">{{ objeto.nome_auditoria }}</p>
+      <div class="confirm-details">
+        <span><i class="bi bi-building"></i> {{ objeto.orgao|default:"Órgão não informado" }}</span>
+        <span><i class="bi bi-flag"></i>
+          {% if objeto.status == 'PLANEJADA' %}Planejada
+          {% elif objeto.status == 'EM_ANDAMENTO' %}Em andamento
+          {% elif objeto.status == 'CONCLUIDA' %}Concluída
+          {% elif objeto.status == 'CANCELADA' %}Cancelada
+          {% endif %}
+        </span>
+        {% if objeto.data_inicio %}<span><i class="bi bi-calendar3"></i> Início: {{ objeto.data_inicio|date:"d/m/Y" }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="confirm-actions">
+      <a href="{% url 'Auth:lista_auditorias' %}" class="btn btn-ghost">Cancelar</a>
+      <form method="post" style="display:inline;margin:0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">
+          <i class="bi bi-trash"></i> Excluir
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

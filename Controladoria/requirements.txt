@@ -1,0 +1,32 @@
+# Dependências do Sistema de Controladoria
+# Gerado em: 11/11/2025
+
+# Framework Web
+Django==5.2.8
+
+# Banco de Dados PostgreSQL
+psycopg2-binary==2.9.11
+
+# Gerenciamento de Variáveis de Ambiente
+python-dotenv==1.2.1
+
+# Segurança e Sanitização
+bleach==6.3.0
+
+# Criptografia de Campos
+django-encrypted-model-fields==0.6.5
+cryptography==46.0.3
+
+# Hash de senha — Argon2id (memory-hard, RFC 9106 / OWASP); ver PASSWORD_HASHERS
+argon2-cffi==25.1.0
+
+# Servidor WSGI de produção (o runserver do Django é só para desenvolvimento).
+# Não roda em Windows — depende de fcntl; instala e roda no servidor Linux.
+gunicorn==23.0.0
+
+# Dependências Transitivas (instaladas automaticamente)
+# asgiref==3.10.0
+# sqlparse==0.5.3
+# webencodings==0.5.1
+# cffi>=2.0.0
+# pycparser

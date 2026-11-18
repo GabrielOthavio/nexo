@@ -1,0 +1,83 @@
+{% comment %} Aba "Histórico" de Gerenciar Auditoria — a trilha de auditoria (HistoricoAlteracoes)
+   desta auditoria, suas etapas e achados, renderizada no servidor. Cada entrada
+   mostra só os campos que mudaram; os demais ficam num <details>. O contexto
+   `historico` é montado em crud_Auditoria_views.gerenciar_auditoria a partir de
+   views/historico.py. {% endcomment %}
+<div class="card" style="border-top-left-radius:0;border-top-right-radius:0">
+  <div class="card-header">
+    <div>
+      <span class="card-title">Histórico de Alterações</span>
+      <p class="card-subtitle" style="margin:4px 0 0">
+        Toda criação, edição e exclusão desta auditoria, das etapas e dos achados — inclusive as que chegaram do app de campo. Mais recente primeiro.
+      </p>
+    </div>
+  </div>
+
+  {% if historico %}
+  <div style="display:flex;flex-direction:column;gap:12px;padding:16px">
+    {% for item in historico %}
+    {% with h=item.entrada %}
+    <div class="card" id="hist-{{ h.uuid_objeto }}" style="margin:0">
+      <div class="card-header" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:13px">
+        <span class="badge">{{ h.tipo_objeto }}</span>
+        {% if h.operacao == 'CRIADO' %}<span class="badge badge-success">Criado</span>
+        {% elif h.operacao == 'EXCLUIDO' %}<span class="badge badge-danger">Excluído</span>
+        {% else %}<span class="badge badge-warning">Atualizado</span>{% endif %}
+        {% if item.descricao %}<span class="cell-primary">{{ item.descricao }}</span>{% endif %}
+        <span style="margin-left:auto;color:var(--fg-muted);white-space:nowrap">
+          <i class="bi bi-person"></i>
+          {% if h.usuario %}{{ h.usuario.get_full_name|default:h.usuario.username }}{% else %}<em>Sistema</em>{% endif %}
+          &nbsp;·&nbsp;
+          <span style="font-family:var(--font-mono);font-size:12px">{{ h.data_hora_alteracao|date:"d/m/Y H:i:s" }}</span>
+        </span>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:22%">Campo</th>
+              <th>Anterior</th>
+              <th>Posterior</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in item.campos %}{% if c.mudou %}
+            <tr>
+              <td title="{{ c.campo }}"><i class="bi bi-pencil text-warning" aria-hidden="true"></i> {{ c.rotulo }}</td>
+              <td class="text-danger" style="white-space:pre-wrap">{% if c.anterior is None %}—{% else %}{{ c.anterior_exibido }}{% endif %}</td>
+              <td class="text-success" style="white-space:pre-wrap">{% if c.posterior is None %}—{% else %}{{ c.posterior_exibido }}{% endif %}</td>
+            </tr>
+            {% endif %}{% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <details style="padding:8px 16px 12px;font-size:12px;color:var(--fg-muted)">
+        <summary style="cursor:pointer">Todos os campos ({{ item.campos|length }})</summary>
+        <div class="table-wrap" style="margin-top:8px">
+          <table class="table">
+            <tbody>
+              {% for c in item.campos %}
+              <tr>
+                <td style="width:22%" title="{{ c.campo }}">{{ c.rotulo }}</td>
+                <td style="white-space:pre-wrap">{% if c.anterior is None %}—{% else %}{{ c.anterior_exibido }}{% endif %}</td>
+                <td style="white-space:pre-wrap">{% if c.posterior is None %}—{% else %}{{ c.posterior_exibido }}{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+    {% endwith %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty" style="padding:40px">
+    <div class="empty-icon"><i class="bi bi-clock-history"></i></div>
+    <p class="empty-title">Nenhuma alteração registrada</p>
+    <p class="empty-msg">Criações, edições e exclusões desta auditoria aparecem aqui automaticamente.</p>
+  </div>
+  {% endif %}
+</div>

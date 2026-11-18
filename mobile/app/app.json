@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Controladoria Campo",
+    "slug": "controladoria-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "br.edu.ifpr.controladoria.mobile",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Usado para desbloquear o app e proteger os dados de auditoria em caso de perda do aparelho."
+      }
+    },
+    "android": {
+      "package": "br.edu.ifpr.controladoria.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0E18"
+      }
+    },
+    "plugins": [
+      "expo-asset",
+      "@react-native-community/datetimepicker",
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0B0E18",
+          "dark": { "backgroundColor": "#0B0E18" }
+        }
+      ]
+    ]
+  }
+}

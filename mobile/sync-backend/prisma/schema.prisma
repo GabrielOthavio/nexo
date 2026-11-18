@@ -1,0 +1,151 @@
+// Backend de sincronização — persistência própria e isolada do núcleo
+// administrativo Django (ver TCC seção 3.4: "isolar o protocolo de
+// sincronização da lógica de domínio administrativo"). Os modelos aqui
+// representam apenas o necessário para autenticar dispositivos de campo,
+// aplicar RBAC/escopo por unidade, e validar lotes de Achados offline.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("SYNC_DATABASE_URL")
+}
+
+enum Unidade {
+  SEFAZ
+  SESAU
+  SEINFRA
+  SEMA
+  SEAD
+  SEDUC
+  SESP
+  SEAG
+  SEJEL
+  SEDU
+  OUTRO
+}
+
+model Usuario {
+  id            Int      @id @default(autoincrement())
+  uuid          String   @unique @default(uuid())
+  username      String   @unique
+  senhaHash     String   @map("senha_hash")
+  nomeCompleto  String   @map("nome_completo")
+  perfil        String   // espelha o nome do Perfil no Django (ex.: "Chefe", "Funcionário")
+  unidade       Unidade? // null = sem restrição de escopo (mesma semântica do Django)
+  // Vínculo com o Usuario.id_unico do núcleo Django — é o identificador
+  // repassado à API interna (api_mobile_views.py) em toda chamada, nunca
+  // um campo enviado pelo app/cliente (ver decisão "confused deputy" no
+  // plano de integração). Provisionado manualmente — ver management command
+  // vincular_usuario_mobile no Django.
+  djangoUsuarioUuid String @unique @map("django_usuario_uuid")
+  ativo         Boolean  @default(true)
+  criadoEm      DateTime @default(now()) @map("criado_em")
+
+  lotes         LoteSincronizacao[]
+  mapeamentosUuid MapeamentoUuidTemporario[]
+  ancoras       AncoraDispositivo[]
+  elosAceitos   EloAceito[]
+
+  @@map("usuarios")
+}
+
+/// Âncora de continuidade da cadeia de hashes entre chamadas de push
+/// separadas no tempo (um dispositivo sincroniza só os itens pendentes a
+/// cada vez, não o histórico inteiro) — é só um hash, não conteúdo do
+/// Achado, então não conflita com a decisão de não persistir conteúdo aqui.
+///
+/// A âncora é por (usuário, DISPOSITIVO), não por usuário: a cadeia em si
+/// vive no SQLite do aparelho (`operacoes_pendentes`) e recomeça do gênesis
+/// a cada instalação. A mesma conta em dois aparelhos empurra duas cadeias
+/// independentes — com uma âncora única por usuário, cada push invalidaria a
+/// continuidade do outro aparelho, e essas falhas falsas eram "resgatadas"
+/// pela reconciliação do primeiro item (que confia num item auto-consistente
+/// sem prova real de continuidade), esvaziando a garantia da cadeia justo no
+/// cenário multi-dispositivo. O `dispositivoId` chega no header X-Device-Id
+/// (ver dispositivoId.ts no app e SyncController.push).
+///
+/// `atualizadoEm` (@updatedAt) existe para diagnóstico; o controle de
+/// concorrência do avanço da âncora é feito por compare-and-swap sobre o
+/// próprio `ultimoHashConfirmado` (ver SyncService.push), não por timestamp.
+model AncoraDispositivo {
+  id                   Int      @id @default(autoincrement())
+  usuario              Usuario  @relation(fields: [usuarioId], references: [id])
+  usuarioId            Int      @map("usuario_id")
+  dispositivoId        String   @map("dispositivo_id")
+  ultimoHashConfirmado String?  @map("ultimo_hash_confirmado")
+  /// uuid do item ABANDONADO que produziu o `ultimoHashConfirmado` acima —
+  /// null quando a posição atual da âncora veio de um item normal
+  /// (confirmado/conflitado) ou quando ainda não houve item nenhum.
+  ///
+  /// É a memória de "eu já pulei exatamente este uuid": sem ela, a
+  /// reconciliação de resposta perdida aceitaria um primeiro item abandonado
+  /// só por ele ser auto-consistente — e como um abandonado não gera efeito
+  /// nenhum no Django, nada mais barraria um aparelho comprometido de
+  /// re-ancorar a cadeia do servidor num valor forjado (ver SyncService.push).
+  ultimoAbandonadoUuid String?  @map("ultimo_abandonado_uuid")
+  criadoEm             DateTime @default(now()) @map("criado_em")
+  atualizadoEm         DateTime @updatedAt @map("atualizado_em")
+
+  @@unique([usuarioId, dispositivoId])
+  @@map("ancoras_dispositivo")
+}
+
+/// Exceção estreita e deliberada à regra "NestJS nunca persiste conteúdo":
+/// guarda só um par de uuids (metadado de roteamento), mesma classe de
+/// exceção que AncoraDispositivo.ultimoHashConfirmado já é. Necessário porque uma
+/// Etapa criada offline só ganha seu id_unico real do Django no momento em
+/// que o push confirma essa criação — qualquer Achado (ou edição/exclusão
+/// de Etapa) que o dispositivo tenha registrado offline contra essa mesma
+/// Etapa, referenciando-a pelo uuid temporário local, precisa que esse
+/// mapeamento sobreviva entre lotes de push separados (falha parcial, app
+/// reiniciado) — não só durante uma única chamada de push() em memória.
+// Cada elo que fez a âncora avançar (confirmado, conflitado ou abandonado),
+// gravado na MESMA transação do avanço. É a prova que a reconciliação de
+// resposta perdida exige: só se reprocessa um item reenviado com hashAnterior
+// defasado se ESTE servidor já tiver aceito exatamente esse elo (uuid + hash).
+// Sem isso, qualquer item auto-consistente que o Django aceitasse (uma criação
+// nova, por exemplo) re-ancorava a cadeia num valor arbitrário.
+model EloAceito {
+  id            Int      @id @default(autoincrement())
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+  usuarioId     Int      @map("usuario_id")
+  dispositivoId String   @map("dispositivo_id")
+  uuidOperacao  String   @map("uuid_operacao")
+  hashAtual     String   @map("hash_atual")
+  aceitoEm      DateTime @default(now()) @map("aceito_em")
+
+  @@unique([usuarioId, dispositivoId, uuidOperacao])
+  @@map("elos_aceitos")
+}
+
+model MapeamentoUuidTemporario {
+  id             Int      @id @default(autoincrement())
+  usuario        Usuario  @relation(fields: [usuarioId], references: [id])
+  usuarioId      Int      @map("usuario_id")
+  uuidTemporario String   @map("uuid_temporario")
+  uuidDjango     String   @map("uuid_django")
+  criadoEm       DateTime @default(now()) @map("criado_em")
+
+  @@unique([usuarioId, uuidTemporario])
+  @@map("mapeamentos_uuid_temporario")
+}
+
+/// Um lote corresponde a uma chamada POST /sync/push. Guarda só metadados
+/// do protocolo de sincronização (nada de conteúdo de Achado) — o conteúdo
+/// nunca é persistido aqui; passa em memória durante a requisição e é
+/// criado de verdade no Django (ver SyncService.push).
+model LoteSincronizacao {
+  id               Int      @id @default(autoincrement())
+  uuid             String   @unique @default(uuid())
+  usuario          Usuario  @relation(fields: [usuarioId], references: [id])
+  usuarioId        Int      @map("usuario_id")
+  totalItens       Int      @map("total_itens")
+  itensConfirmados Int      @map("itens_confirmados")
+  hashChainOk      Boolean  @map("hash_chain_ok")
+  recebidoEm       DateTime @default(now()) @map("recebido_em")
+
+  @@map("lotes_sincronizacao")
+}

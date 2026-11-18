@@ -1,0 +1,22 @@
+{% load static %}
+{# Faixa de "chegou dado novo do campo". Só aparece quando o carimbo de versão
+   muda (ver Auth/static/Auth/js/atualizacoes.js); nunca redesenha a tela
+   sozinha.
+
+   Parâmetros do include: `aviso_escopo` (obrigatório) e `aviso_id` (só para
+   escopos que precisam de um alvo, como `auditoria`). A querystring é montada
+   aqui em vez de no include porque encadear `|add:` com um UUID devolve string
+   vazia em silêncio — o filtro tenta somar e desiste sem erro. #}
+<div class="aviso-atualizacao" id="aviso-atualizacao"
+     role="status" aria-live="polite"
+     data-url="{% url 'Auth:api_atualizacoes' %}?escopo={{ aviso_escopo }}{% if aviso_id %}&amp;id={{ aviso_id }}{% endif %}"
+     data-intervalo="20000">
+  <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+  <span class="aviso-atualizacao-texto" data-aviso-texto>Há alterações novas nesta tela.</span>
+  <button type="button" class="btn btn-sm btn-primary" data-aviso-atualizar>Atualizar</button>
+  <button type="button" class="btn btn-sm btn-ghost btn-icon" data-aviso-dispensar
+          title="Dispensar" aria-label="Dispensar aviso">
+    <i class="bi bi-x-lg" aria-hidden="true"></i>
+  </button>
+</div>
+<script src="{% static 'Auth/js/atualizacoes.js' %}" defer></script>
